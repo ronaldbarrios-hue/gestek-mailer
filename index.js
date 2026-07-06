@@ -1,5 +1,5 @@
 const express = require('express');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const app = express();
 app.use(express.json());
@@ -15,19 +15,8 @@ function auth(req, res, next) {
   next();
 }
 
-// Inicializar transporte Gmail OAuth2
-function createTransport() {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      type: 'OAuth2',
-      user: process.env.GMAIL_USER,
-      clientId: process.env.GMAIL_CLIENT_ID,
-      clientSecret: process.env.GMAIL_CLIENT_SECRET,
-      refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-    },
-  });
-}
+// Cliente de Resend (envía por HTTPS, no usa SMTP/puertos bloqueados)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // POST /send
 app.post('/send', auth, async (req, res) => {
@@ -36,15 +25,20 @@ app.post('/send', auth, async (req, res) => {
     return res.status(400).json({ error: 'Faltan campos: to, subject, html' });
   }
   try {
-    const transport = createTransport();
-    const info = await transport.sendMail({
-      from: process.env.EMAIL_FROM || `GESTEK <${process.env.GMAIL_USER}>`,
-      to: Array.isArray(to) ? to.join(',') : to,
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'GESTEK <notificaciones@gestekeventost.dpdns.org>',
+      to: Array.isArray(to) ? to : [to],
       subject,
       html,
     });
-    console.log('[mailer] enviado:', info.messageId);
-    res.json({ ok: true, messageId: info.messageId });
+
+    if (error) {
+      console.error('[mailer] error de Resend:', error);
+      return res.status(500).json({ ok: false, error: error.message || error });
+    }
+
+    console.log('[mailer] enviado:', data.id);
+    res.json({ ok: true, messageId: data.id });
   } catch (e) {
     console.error('[mailer] error:', e.message);
     res.status(500).json({ ok: false, error: e.message });
