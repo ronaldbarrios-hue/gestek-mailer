@@ -18,8 +18,8 @@ function auth(req, res, next) {
 // Cliente de Resend (envía por HTTPS, no usa SMTP/puertos bloqueados)
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// POST /send
-app.post('/send', auth, async (req, res) => {
+// POST /send (con y sin prefijo, por compatibilidad con distintos entornos de despliegue)
+app.post(['/send', '/gestek-mailer/send'], auth, async (req, res) => {
   const { to, subject, html } = req.body;
   if (!to || !subject || !html) {
     return res.status(400).json({ error: 'Faltan campos: to, subject, html' });
@@ -45,8 +45,8 @@ app.post('/send', auth, async (req, res) => {
   }
 });
 
-// GET /health
-app.get('/health', (req, res) => {
+// GET /health (con y sin prefijo)
+app.get(['/health', '/gestek-mailer/health'], (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
